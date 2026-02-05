@@ -1,58 +1,56 @@
 import warnings
-import pandas as pd
-import os
-from src.data_loader import LocalDataLoader
-from src.alpha_model import MultiFactorModel
-from src.optimizer import PortfolioOptimizer
-from src.analytics import print_full_diagnostics, print_comparison, plot_dashboard, run_attribution
+from src.data_loader import DataLoader
+from src.model_engine import HMMModelEngine
+from src.strategy_logic import StrategyLogic
+from src.analytics import Analytics
 
-# --- Global Settings ---
-pd.set_option('display.max_columns', 20)
-pd.set_option('display.width', 1000)
-pd.set_option('display.float_format', '{:.2f}'.format)
+# Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
 
 def main():
-    print("=== Systematic Multi-Factor Credit Strategy (Project Mode) ===")
+    print("=== Robust HMM Strategy (Walk-Forward Validation) ===")
     
-    # 1. Data Loading & Proxy Construction
-    print("\n[Step 1] Initializing Data Loader...")
-    loader = LocalDataLoader()
+    # === Asset Universe Configuration ===
+    # 1. Risk-On Assets:
+    #    QQQ: Nasdaq 100 (High Beta, Tech Growth)
+    #    SPY: S&P 500 (Core Asset, Defensive Growth)
     
-    # Define paths: Try relative path first, fallback to your specific local path
-    relative_path = os.path.join("data", "LQD_holdings.csv")
-    absolute_path = r"D:/quant/CorpBondMultiFactorStrategy/data/LQD_holdings.csv"
+    # 2. Risk-Off Assets:
+    #    TLT: 20Y+ Treasury (Deflationary Hedge)
+    #    GLD: Gold (Inflationary/Fiat Hedge)
+    #    BIL: T-Bills/Cash (Ultimate Safety)
     
-    try:
-        if os.path.exists(relative_path):
-            df = loader.load_data(relative_path)
-        else:
-            print(f"Note: Relative path not found, attempting absolute path: {absolute_path}")
-            df = loader.load_data(absolute_path)
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        return
-
-    # 2. Alpha Model Execution (Ridge Regression)
-    print("\n[Step 2] Running Multi-Factor Alpha Model...")
-    model = MultiFactorModel()
-    df_scored = model.run_model(df)
-
-    # 3. Portfolio Optimization (Scipy SLSQP)
-    # Note: Selecting top 500 candidates to optimize computation speed
-    print("\n[Step 3] Constructing Portfolio (Transaction-Cost Aware)...")
-    optimizer = PortfolioOptimizer(n_select=500, risk_scalar=100)
-    df_final = optimizer.construct(df_scored)
+    # 3. Macro Signals (Feature Calculation Only):
+    #    LQD: Investment Grade Corp Bonds (Smart Money)
+    #    HYG: High Yield Bonds (Risk Sentiment)
+    #    ^VIX: Volatility Index
     
-    # 4. Performance Attribution
-    print("\n[Step 4] Running Performance Attribution...")
-    df_final = run_attribution(df_final)
-
-    # 5. Diagnostics & Visualization
-    print("\n[Step 5] Generating Reports and Dashboard...")
-    print_full_diagnostics(df_final)
-    print_comparison(df_final)
-    plot_dashboard(df_final)
+    tickers = ['QQQ', 'SPY', 'TLT', 'GLD', 'BIL', 'LQD', 'HYG', '^VIX']
+    
+    # 1. Initialize Modules
+    # Note: min_train_years=5 means we need 5 years of data before making the first prediction
+    data_loader = DataLoader(tickers, start_date='2007-01-01')
+    hmm_engine = HMMModelEngine(min_train_years=5)
+    strat_logic = StrategyLogic()
+    analytics = Analytics()
+    
+    # 2. Data Pipeline
+    # Download raw data
+    data_raw = data_loader.get_data()
+    
+    # Calculate economic features (Credit Spread Mom, VIX Mom, Tech Mom)
+    data_feat = data_loader.engineer_features(data_raw)
+    
+    # 3. Model Training
+    # Apply Walk-Forward Validation (Expanding Window) to prevent look-ahead bias
+    data_wf = hmm_engine.walk_forward_training(data_feat)
+    
+    # 4. Strategy Execution
+    # Apply Logic: State Smoothing -> Trend Filter -> Correlation Filter -> Vol Control
+    res = strat_logic.execute_strategy(data_wf)
+    
+    # 5. Visualization & Reporting
+    analytics.plot_results(res)
 
 if __name__ == "__main__":
     main()
